@@ -1,4 +1,6 @@
 import cPickle
+import time
+
 def save_model(model, path, file_name):
 	'''
 	Date		:	04/19/2018 
@@ -47,6 +49,7 @@ def load_model(path):
 	print('time elapsed: ' + str(end - start) + ' seconds')
 	
 	return model
+	
 #######################################################################################
 import pandas as pd
 def load_csv(path):
@@ -74,8 +77,10 @@ def load_csv(path):
 	print('dataframe dimension: ' + str(df.shape))
 	return df
 
+import sklearn
+from sklearn.metrics import roc_curve, auc
 def cal_roc(model, x, y):
-	'''
+    '''
 	Date		:	04/19/2018 
 	
 	Description	:	Calculate ROC
@@ -90,15 +95,16 @@ def cal_roc(model, x, y):
 					List {fpr}
 					List {tpr}
 	
-	Example		:	N/A
-	'''
-	
-    probs_true = model.predict_proba(x)[::,1]
+    Example		:	N/A
+    '''    
+    probs_true = model.predict_proba(x)[::, 1]
     fpr, tpr, thresholds = roc_curve(y, probs_true)
     roc_auc = auc(fpr,tpr)
-	
+    	
     return roc_auc, fpr, tpr
-	
+
+import matplotlib
+import matplotlib.pyplot as plt
 def plot_roc(model, x, x_val, y, y_val, path_save=None, file_name=None):
 	'''
 	Date		:	04/19/2018 
@@ -143,7 +149,8 @@ def plot_roc(model, x, x_val, y, y_val, path_save=None, file_name=None):
 	if (path_save != None) & (file_name !=None):
 		plt.savefig(path_save.replace("\\", "/") + "/" + file_name + ".png")
 	plt.show()
-	
+
+import numpy as np
 def cal_ks_lift(model, x, y, num_bins):
 	'''
 	Date		:	04/19/2018 
@@ -216,10 +223,10 @@ def plot_gain_lift(model, x, x_val, y, y_val, num_bins=21):
 	Example		:	N/A
 	'''
 	
-	print "Training:"
+	print("Training:")
 	KS_value, df_lift = cal_ks_lift(model, x, y, num_bins)
 	
-	print "\nValidation:"
+	print("\nValidation:")
 	KS_value_val, df_lift_val = cal_ks_lift(model, x_val, y_val, num_bins)
 	
 	# Gain Chart
@@ -268,6 +275,7 @@ def model_performance_01(model, x, y):
 	print('4xtimes', len(df_prob[df_prob.lift>=4]))
 	print('5xtimes', len(df_prob[df_prob.lift>=5]))
 
+from pandas.core.algorithms import algos
 def partial_dependency_1d(model, x, feature = None, num_bins = 10, path_save=None):
 	'''
 	Date		:	05/03/2018 
@@ -293,7 +301,7 @@ def partial_dependency_1d(model, x, feature = None, num_bins = 10, path_save=Non
 	
 	if feature == None:
 		feature = x.columns.values.tolist()
-		print 'No feature is specificed. All the available features are used\n'
+		print('No feature is specificed. All the available features are used\n')
 	
 	for var in feature:
 		x_temp = x.copy()
@@ -328,12 +336,16 @@ def partial_dependency_1d(model, x, feature = None, num_bins = 10, path_save=Non
 
 		plt.show()
 
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+from scipy.interpolate import griddata
+
 def partial_dependency_2d(model, x, feature, num_bins = 10, path_save=None):
 	'''
 	Date		:	05/03/2018 
-	
+
 	Description	:	Plot 2-d partial dependency chart
-	
+
 	Parameters	:	model - Sklearn model object
 					x - Dataframe
 						validation dataset with only independent variables
@@ -361,7 +373,7 @@ def partial_dependency_2d(model, x, feature, num_bins = 10, path_save=None):
 								The location for saving the chart
 					
 	Return		:	N/A
-	
+
 	Example		:	N/A
 	'''
 		
@@ -375,26 +387,26 @@ def partial_dependency_2d(model, x, feature, num_bins = 10, path_save=None):
 		
 		df_var_1 = x_temp[[feature_1]].dropna()
 		df_var_2 = x_temp[[feature_2]].dropna()
-    
+
 		grid_1 = np.unique(algos.quantile(df_var_1, np.linspace(0.01, 0.99, num_bins)))
 		grid_2 = np.unique(algos.quantile(df_var_2, np.linspace(0.01, 0.99, num_bins)))
-  
+
 		y_pred_temp = np.zeros(len(grid_1)*len(grid_2))
 		grid_1_temp = np.zeros(len(grid_1)*len(grid_2))
 		grid_2_temp = np.zeros(len(grid_1)*len(grid_2))
 		
-        j = 0 
-        for i_1, value_1 in enumerate(grid_1):
-            for i_2, value_2 in enumerate(grid_2):               
-                x_temp[feature_1] = value_1
-                x_temp[feature_2] = value_2
-                
-                probs=model.predict_proba(x_temp)
-                y_pred_temp[j] = np.average(probs[::,1])
+		j = 0 
+		for i_1, value_1 in enumerate(grid_1):
+			for i_2, value_2 in enumerate(grid_2):               
+				x_temp[feature_1] = value_1
+				x_temp[feature_2] = value_2
+				
+				probs=model.predict_proba(x_temp)
+				y_pred_temp[j] = np.average(probs[::,1])
 				grid_1_temp[j] = value_1
 				grid_2_temp[j] = value_2
 				
-                j += 1
+				j += 1
 
 		fig = plt.figure()
 		ax = fig.gca(projection='3d')
@@ -421,8 +433,8 @@ def partial_dependency_2d(model, x, feature, num_bins = 10, path_save=None):
 		# Add a color bar which maps values to colors.
 		fig.colorbar(surf, shrink=0.5, aspect=5)
 
-		ax.set_xlabel(features[0],fontsize=10)
-		ax.set_ylabel(features[1], fontsize=10)
+		ax.set_xlabel(feature_1,fontsize=10)
+		ax.set_ylabel(feature_2, fontsize=10)
 		ax.set_zlabel('Prob.', fontsize=10)
 
 		# Save the graph
