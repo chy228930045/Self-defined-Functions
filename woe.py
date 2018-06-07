@@ -55,7 +55,24 @@ class WoE:
                 self.spec_values = {}
             else:
                 self.spec_values = {i: 'd_' + str(i) for i in spec_values}
-
+    
+    # Execution Functions
+    def equal_size(self, x, y):
+        """
+        All the buckets have the same # of obs
+        """
+        new_woe = self.fit(x, y)
+        return new_woe
+    
+    def monotonic(self, x, y, hypothesis=0):
+        self.fit(x, y)
+        return self.force_monotonic(hypothesis)
+    
+    def tree(self, x, y, criterion=None, fix_depth=None, max_depth=None, cv=3, scoring=None, min_samples_leaf=None):
+        self.fit(x, y)
+        return self.optimize(criterion, fix_depth, max_depth, cv, scoring, min_samples_leaf)
+    
+    # Core Functions
     def fit(self, x, y):
         """
         Fit WoE transformation
@@ -104,20 +121,21 @@ class WoE:
         self.df.sort_values('order', inplace=True)
         self.df.set_index(x.index, inplace=True)
         return self
-
-
-
+        
     def force_monotonic(self, hypothesis=0):
         """
         Makes transformation monotonic if possible, given relationship hypothesis (otherwise - MonotonicConstraintError
         exception)
-        :hypothesis: direct (0) or inverse (1) hypothesis relationship between predictor and target variable
+        This method bins the existing buckets together to create a monotonic trend. Suggest to set the default # of bins large, because the bining
+        algorithm reduces the # of bins
+        :hypothesis: increasing (0) or decreasing (1) hypothesis relationship between predictor and target variable
         :return: new WoE object with monotonic transformation
         """
         if hypothesis == 0:
             op_func = operator.gt
         else:
             op_func = operator.lt
+        
         cont_bins = self.__get_cont_bins()
         new_woe = self
         for i, w in enumerate(cont_bins[1:]['woe']):
@@ -130,8 +148,8 @@ class WoE:
                     new_woe = new_woe.force_monotonic(hypothesis)
                     return new_woe
         return new_woe
-
-    def tree_optimize(self, criterion=None, fix_depth=None, max_depth=None, cv=3, scoring=None, min_samples_leaf=None):
+            
+    def optimize(self, criterion=None, fix_depth=None, max_depth=None, cv=3, scoring=None, min_samples_leaf=None):
         """
         WoE bucketing optimization (continuous variables only)
         :param criterion: binary tree split criteria
@@ -158,9 +176,9 @@ class WoE:
         if fix_depth is None:
             for i in range(start, m_depth):
                 if criterion is None:
-                    d_tree = tree_type(max_depth=i, min_samples_leaf=min_samples_leaf)
+                    d_tree = tree_type(max_depth=i, min_samples_leaf=min_samples_leaf, random_state=0, min_impurity_decrease=0.001)
                 else:
-                    d_tree = tree_type(criterion=criterion, max_depth=i, min_samples_leaf=min_samples_leaf)
+                    d_tree = tree_type(criterion=criterion, max_depth=i, min_samples_leaf=min_samples_leaf, random_state=0, min_impurity_decrease=0.001)
                 scores = cross_val_score(d_tree, x_train, y_train, cv=cv, scoring=scoring)
                 cv_scores.append(scores.mean())
             best = np.argmax(cv_scores) + start
@@ -186,7 +204,7 @@ class WoE:
         ax = woe_fig.add_subplot(111)
         ax.set_ylabel('Observations')
         plot_data = self.bins[['labels', 'woe', 'obs', 'bins']].copy().drop_duplicates()
-
+        
         # creating plot labels
         if self.v_type != 'd':
             cont_labels = plot_data['labels'].apply(lambda z: not z.startswith('d_'))
@@ -201,7 +219,7 @@ class WoE:
             plot_data['plot_bins'] = np.where(cont_labels, plot_data['plot_bins'], plot_data['labels'])
         else:
             plot_data['plot_bins'] = plot_data['bins']
-
+                    
         # sorting
         if sort_values:
             if self.v_type != 'd':
@@ -210,6 +228,8 @@ class WoE:
                 plot_data = temp_data.append(plot_data[~cont_labels].sort_values('labels'))
             else:
                 plot_data.sort_values('woe', inplace=True)
+
+        plot_data = plot_data[['labels', 'woe', 'obs', 'plot_bins']].drop_duplicates()
 
         # start plotting
         index = np.arange(plot_data.shape[0])
@@ -324,9 +344,8 @@ class WoE:
         t_good = 0.5 if t_good == 0 else t_good
         return np.log(t_good / t_bad)
 
-
+"""
 # Examples
-
 # create dummy dataset
 t_type_ = 'c'
 # Set sample size
@@ -351,27 +370,27 @@ x2[30:40] = float(0)
 # Initialize WoE object
 woe = WoE(7, 30, spec_values={0: '0', 1: '1', 2: '2'}, v_type='c', t_type='c')
 
-# make quanitle based transformation
-woe_quantile = woe.fit(pd.Series(x1), pd.Series(y_))
-fig = woe_quantile.plot()
+# make equal-size based transformation
+woe_equal_size= woe.equal_size(pd.Series(x1), pd.Series(y_))
+fig = woe_equal_size.plot()
 plt.show(fig)
 
+woe.df # get the woe table
+
 # make monotonic transformation with decreasing relationship hypothesis
-woe_monotonic = woe.force_monotonic(hypothesis=1)
+woe_monotonic = woe.monotonic(x=pd.Series(x1), y=pd.Series(y_), hypothesis=1)
 fig = woe_monotonic.plot()
 plt.show(fig)
 
 # Optimize x1 transformation using tree with maximal depth = 5 (optimal depth is chosen by cross-validation)
-woe_tree = woe.tree_optimize(max_depth=5, min_samples_leaf=int(N / 3))
+woe_tree = woe.tree(x=pd.Series(x1), y=pd.Series(y_), max_depth=2, min_samples_leaf=100)
 fig = woe_tree.plot()
 
 # Merge discrete buckets
-woe_quantile_01 = woe_quantile.merge('d_0', 'd_1')
-fig = woe_quantile_01.plot()
+woe_equal_size.merge('d_0', 'd_1').df
+fig = woe_equal_size.merge('d_0', 'd_1').plot()
 
-
-
-
-# # Merge 2 and 3 continuous buckets
-woe4 = woe3.merge('2')
+# # Merge 2 and 3 continuous buckets. 2 and 3 is the label index
+fig = woe.merge('2').plot()
 print('Transformation with manual woe')
+"""
