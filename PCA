@@ -1,0 +1,25 @@
+## PCA Analysis
+imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
+x_imp = imp.fit_transform(x[var_x_pbg])
+pca = PCA().fit(x_imp)
+plt.plot(np.cumsum(pca.explained_variance_ratio_))
+plt.xlabel('number of components')
+plt.ylabel('cumulative explained variance');
+
+pca = PCA(n_components=25)
+pca.fit_transform(x_imp)
+df_components = pd.DataFrame(pca.components_,columns=var_x_pbg).T
+df_cluster = pd.DataFrame()
+for col in range(25):
+    df_temp = df_components[col].nlargest(20).reset_index()
+    df_temp.columns = ['feature', 'contribution']
+    df_temp['cluster'] = col
+    df_cluster = df_cluster.append(df_temp)
+
+df_cluster = df_cluster.merge(df_iv_pbg, left_on='feature', right_on='variable_name', how='left')
+df_cluster = df_cluster[['cluster', 'feature', 'contribution', 'IV']]
+
+filename = dir_out + "\\df_cluster_pbg.csv"
+filename = filename.replace('\\', '/')
+df_cluster.to_csv(filename, index=False)
+df_cluster.head()
