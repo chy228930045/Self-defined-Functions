@@ -11,7 +11,8 @@ import operator
 from sklearn import linear_model
 from scipy import stats
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
+from sklearn import svm
+from sklearn.preprocessing import StandardScaler
 
 def my_sklearn_rf(x, y, param = {"n_estimators":100, 
 								 "max_features":"auto", 
@@ -304,22 +305,84 @@ def my_sklearn_nbayes(x, y, params={"priors":None}):
 	return model
 
 #SVM
-def my_sklearn_svm(x, y, params={"kernel":'linear'}):
+def my_sklearn_svm(x, y, param = {'C':1.0, 
+                                  'cache_size':200, 
+                                  'class_weight':None, 
+                                  'coef0':0.0, 
+                                  'decision_function_shape':'ovr', 
+                                  'degree':3, 
+                                  'gamma':'auto', 
+                                  'kernel':'rbf', 
+                                  'max_iter':-1, 
+                                  'probability':False, 
+                                  'random_state':None, 
+                                  'shrinking':True, 
+                                  'tol':0.001, 
+                                  'verbose':False}):
 	
-	start = time.time()
+    '''
+    Date	:	06/22/2018 
 	
-	imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
-	svm = SVC(C=1.0, cache_size=200, class_weight=None, coef0=0.0,
-                decision_function_shape='ovr', degree=3, gamma='auto', kernel=params["kernel"],
-                max_iter=-1, probability=True, random_state=None, shrinking=True,
-                tol=0.001, verbose=False)
-    
-    
-	model = Pipeline([('imputation', imp),('SVM', svm)])
-	model.fit(x, y)
+    Description	:	Apply support vector machine
 
-	end = time.time()
-	print('time elapsed: ' + str(end - start) + ' seconds')
+    Parameters	:  x - Dataframe
+    					Training dataset with only independent variables
+                    y - Dataframe 
+						Training dataset with only the dependent variable
+                    Binary (optional)
+						Parameters used for the model. Check the link below for details.
+						http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html
+					
+    Return		:	model object
+					dataframe
 	
-	return model
+    Example	:	N/A
+    '''
+	
+    start = time.time()
+    
+    print("#### Parameters for SVM ####")
+    print("C: %f" % param["C"])
+    print("cache size: %d" % param["cache_size"])
+    print("class weight: %s" % param["class_weight"])
+    print("coef0: %f" % param["coef0"])
+    print("decision function shape: %s" % param["decision_function_shape"])
+    print("degree: %d" % param["degree"])
+    print("gamma: %s" % param["gamma"])
+    print("kernel: %s" % param["kernel"])
+    print("max iter: %d" % param['max_iter'])
+    print("probability: %s" % param['probability'])
+    print("random_state: %s" % param['random_state'])
+    print("shrinking: %s" % param['shrinking'])
+    print("tol: %f" % param['tol'])
+    print("verbose: %s" % param['verbose'])
+    print("###########################\n")
+    
+	
+	# apply random forest model
+    svm_model = svm.SVC(C=param["C"], 
+                        cache_size=param["cache_size"], 
+                        class_weight=param["class_weight"], 
+                        coef0=param["coef0"], 
+                        decision_function_shape=param["decision_function_shape"], 
+                        degree=param["degree"], 
+                        gamma=param["gamma"], 
+                        kernel=param["kernel"], 
+                        max_iter=param['max_iter'], 
+                        probability=param['probability'], 
+                        random_state=param['random_state'], 
+                        shrinking=param['shrinking'], 
+                        tol=param['tol'], 
+                        verbose=param['verbose'])
+	
+    imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
+    norm = StandardScaler(copy=True, with_mean=True, with_std=True)
+    steps =[('imputation', imp), ('normalize', norm), ('svc', svm_model)]
+    model = Pipeline(steps)
+    model.fit(x,y)
+    
+    end = time.time()
+    print('time elapsed: ' + str(end - start) + ' seconds')
+    
+    return model
 
