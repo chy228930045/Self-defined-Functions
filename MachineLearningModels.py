@@ -1,9 +1,25 @@
+import numpy as np
+import pandas as pd
+import time
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import Imputer
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier as rf
+from sklearn.tree import DecisionTreeClassifier
+from xgboost.sklearn import XGBClassifier
+import operator
+from sklearn import linear_model
+from scipy import stats
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+
 def my_sklearn_rf(x, y, param = {"n_estimators":100, 
 								 "max_features":"auto", 
 								 "max_depth":10, 
 								 "min_samples_split":0.001,
 								 "min_samples_leaf":0.0001,
-								 "random_state":66}):
+								 "random_state":66,
+								 "min_impurity_decrease":0}):
 	
 	'''
 	Date		:	04/20/2018 
@@ -31,6 +47,7 @@ def my_sklearn_rf(x, y, param = {"n_estimators":100,
 	print("max depth: %d" % param["max_depth"])
 	print("min sample split: %0.05f" % param["min_samples_split"])
 	print("min sample leaf: %0.05f" % param["min_samples_leaf"])
+	print("min impurity decrease: %0.05f" % param["min_impurity_decrease"])
 	print("###########################\n")
 	
 	# apply random forest model
@@ -39,6 +56,7 @@ def my_sklearn_rf(x, y, param = {"n_estimators":100,
 				max_depth=param["max_depth"], 
 				min_samples_split=param["min_samples_split"], 
 				min_samples_leaf=param["min_samples_leaf"],
+				min_impurity_decrease=param["min_impurity_decrease"],
 				random_state = 666,
 				n_jobs=48)
 	
@@ -49,12 +67,12 @@ def my_sklearn_rf(x, y, param = {"n_estimators":100,
 	
 	# feature importance
 	df_importance = pd.DataFrame({'feature':x.columns, 'importance':np.round(model.named_steps['RandomForestClassifier'].feature_importances_, 6)})
-	df_importance = df_importance.sort('importance',ascending=False)
+	df_importance = df_importance.sort_values('importance', ascending=False)
 	df_importance = df_importance.reset_index()
 	df_importance = df_importance.drop(['index'], axis=1)
 	
 	# plot top 20 important features
-	df_importance[df_importance.index < 20].plot(kind='barh', x='feature', y='importance', legend=False, figsize=(6, 10))
+	df_importance[df_importance.index < 10].plot(kind='barh', x='feature', y='importance', legend=False, figsize=(6, 5), color="#337b68")
 	plt.xlabel('importance value')
 	plt.ylabel('feature')
 	plt.gca().invert_yaxis()
@@ -97,7 +115,7 @@ def my_sklearn_logistic(x, y, param={"penalty":"l1",
 	start = time.time()
 	
 	imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
-	logistic = linear_model.LogisticRegression(penalty=param["penalty"], C=param["C"], random_state=param["random_state"], n_jobs=50)
+	logistic = linear_model.LogisticRegression(penalty=param["penalty"], C=param["C"], random_state=param["random_state"])
 	model = Pipeline([('imputation', imp),('LogisticRegression', logistic)])
 	model.fit(x, y)
 	
@@ -136,6 +154,8 @@ def my_API_XGBoost(x, y, x_val, y_val, param={"learning_rate":1.0,
 											  "max_depth":10, 
 											  "colsample_bytree":1.0,
 											  "colsample_bylevel":1.0,
+                                        "subsample":1.0,
+                                        "gamma":1.0,
 											  "random_state":66}):
 	
 	'''
@@ -176,8 +196,8 @@ def my_API_XGBoost(x, y, x_val, y_val, param={"learning_rate":1.0,
 							colsample_bytree=param["colsample_bytree"], 
 							colsample_bylevel=param["colsample_bylevel"],
 							seed=param["random_state"],
-							subsample=0.9, 
-							gamma=0, 
+							subsample=param["subsample"], 
+							gamma=param["gamma"], 
 							min_child_weight=1,
 							objective ='binary:logistic',
 							base_score=0.5,
@@ -187,10 +207,10 @@ def my_API_XGBoost(x, y, x_val, y_val, param={"learning_rate":1.0,
 	model.fit(x, y, eval_set=[(x_val, y_val)], eval_metric='logloss', verbose=True, early_stopping_rounds=100)
 	
 	# feature importance
-	importance=model.booster().get_fscore()
+	importance=model.get_booster().get_fscore()
 	importance=sorted(importance.items(),key=operator.itemgetter(1))
 	df_importance = pd.DataFrame(importance, columns=['feature', 'splits'])
-	df_importance=df_importance.sort(columns='splits',ascending=False)
+	df_importance=df_importance.sort_values(by='splits',ascending=False)
 	df_importance['fscore'] = df_importance['splits'] / df_importance['splits'].sum()
 	
 	# plot top 20 important features
@@ -208,6 +228,7 @@ def my_sklearn_dtree(x, y, param = {"max_features":"auto",
 									"max_depth":10, 
 									"min_samples_split":0.001,
 									"min_samples_leaf":0.0001,
+                               "min_impurity_decrease":0,
 									"random_state":66}):
 	
 	'''
@@ -242,6 +263,7 @@ def my_sklearn_dtree(x, y, param = {"max_features":"auto",
 										   max_depth=param["max_depth"],
 										   min_samples_split=param["min_samples_split"], 
 										   min_samples_leaf=param["min_samples_leaf"],
+										   min_impurity_decrease=param["min_impurity_decrease"],
 										   random_state=66)
 	
 	imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
@@ -250,7 +272,7 @@ def my_sklearn_dtree(x, y, param = {"max_features":"auto",
 	
 	# feature importance
 	df_importance = pd.DataFrame({'feature':x.columns, 'importance':np.round(model.named_steps['Decision Tree'].feature_importances_, 6)})
-	df_importance = df_importance.sort('importance',ascending=False)
+	df_importance = df_importance.sort_values('importance',ascending=False)
 	df_importance = df_importance.reset_index()
 	df_importance = df_importance.drop(['index'], axis=1)
 	
@@ -265,3 +287,39 @@ def my_sklearn_dtree(x, y, param = {"max_features":"auto",
 	print('time elapsed: ' + str(end - start) + ' seconds')
 	
 	return model, df_importance
+
+#BAYES
+def my_sklearn_nbayes(x, y, params={"priors":None}):
+	
+	start = time.time()
+	
+	imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
+	nbayes = GaussianNB(priors=params["priors"])
+	model = Pipeline([('imputation', imp),('NavieBayes', nbayes)])
+	model.fit(x, y)
+
+	end = time.time()
+	print('time elapsed: ' + str(end - start) + ' seconds')
+	
+	return model
+
+#SVM
+def my_sklearn_svm(x, y, params={"kernel":'linear'}):
+	
+	start = time.time()
+	
+	imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
+	svm = SVC(C=1.0, cache_size=200, class_weight=None, coef0=0.0,
+                decision_function_shape='ovr', degree=3, gamma='auto', kernel=params["kernel"],
+                max_iter=-1, probability=True, random_state=None, shrinking=True,
+                tol=0.001, verbose=False)
+    
+    
+	model = Pipeline([('imputation', imp),('SVM', svm)])
+	model.fit(x, y)
+
+	end = time.time()
+	print('time elapsed: ' + str(end - start) + ' seconds')
+	
+	return model
+

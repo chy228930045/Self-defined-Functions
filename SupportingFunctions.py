@@ -1,6 +1,25 @@
 import cPickle
 import time
+import pandas as pd
+from pandas.core.algorithms import quantile
+from sklearn.metrics import roc_curve, auc
+import numpy as np
 
+def sep_num_cat_attr(df):
+    ls_num = list()
+    ls_cat = list()
+    for col in df.columns.tolist():
+        try:
+            df[col] = pd.to_numeric(df[col])
+            ls_num.append(col)
+        except ValueError:
+            ls_cat.append(col)
+    
+    print('Total # of Vars:' + str(df.shape[1]))
+    print('Total # of Num Vars:' + str(len(ls_num)))
+    print('Total # of Cat Vars:' + str(len(ls_cat)))
+    return ls_num, ls_cat
+          
 def save_model(model, path, file_name):
 	'''
 	Date		:	04/19/2018 
@@ -51,7 +70,7 @@ def load_model(path):
 	return model
 	
 #######################################################################################
-import pandas as pd
+    
 def load_csv(path):
 	'''
 	Date		:	04/19/2018 
@@ -77,8 +96,6 @@ def load_csv(path):
 	print('dataframe dimension: ' + str(df.shape))
 	return df
 
-import sklearn
-from sklearn.metrics import roc_curve, auc
 def cal_roc(model, x, y):
     '''
 	Date		:	04/19/2018 
@@ -103,7 +120,6 @@ def cal_roc(model, x, y):
     	
     return roc_auc, fpr, tpr
 
-import matplotlib
 import matplotlib.pyplot as plt
 def plot_roc(model, x, x_val, y, y_val, path_save=None, file_name=None):
 	'''
@@ -150,7 +166,26 @@ def plot_roc(model, x, x_val, y, y_val, path_save=None, file_name=None):
 		plt.savefig(path_save.replace("\\", "/") + "/" + file_name + ".png")
 	plt.show()
 
-import numpy as np
+def Find_Optimal_Cutoff(target, pred_proba):
+    """ Find the optimal probability cutoff point for a classification model related to event rate
+    Parameters
+    ----------
+    target : Matrix with dependent or target data, where rows are observations
+
+    predicted : Matrix with predicted data, where rows are observations
+
+    Returns
+    -------     
+    list type, with optimal cutoff value
+
+    """
+    fpr, tpr, threshold = roc_curve(target, pred_proba)
+    i = np.arange(len(tpr)) 
+    roc = pd.DataFrame({'tf' : pd.Series(tpr-(1-fpr), index=i), 'threshold' : pd.Series(threshold, index=i)})
+    roc_t = roc.loc[(roc.tf-0).abs().argsort()[:1]]
+
+    return list(roc_t['threshold']) 
+
 def cal_ks_lift(model, x, y, num_bins):
 	'''
 	Date		:	04/19/2018 
@@ -275,7 +310,6 @@ def model_performance_01(model, x, y):
 	print('4xtimes', len(df_prob[df_prob.lift>=4]))
 	print('5xtimes', len(df_prob[df_prob.lift>=5]))
 
-from pandas.core.algorithms import algos
 def partial_dependency_1d(model, x, feature = None, num_bins = 10, path_save=None):
 	'''
 	Date		:	05/03/2018 
@@ -306,7 +340,7 @@ def partial_dependency_1d(model, x, feature = None, num_bins = 10, path_save=Non
 	for var in feature:
 		x_temp = x.copy()
 		df_var = x_temp[[var]].dropna()
-		grid = np.unique(algos.quantile(df_var, np.linspace(0.01, 0.99, num_bins)))
+		grid = np.unique(quantile(df_var, np.linspace(0.01, 0.99, num_bins)))
 		y_pred_temp = np.zeros(len(grid))
 		
 		for i, value in enumerate(grid):
@@ -443,3 +477,41 @@ def partial_dependency_2d(model, x, feature, num_bins = 10, path_save=None):
 			plt.savefig(path_save.replace("\\", "/") + "/" + file_name + ".png")
 			
 		plt.show()
+        
+def my_corr(df, method, abs=False):
+	'''
+	Date		:	04/18/2018 
+	
+	Description	:	Calculate the correlation coefficient for all possible pairs
+	
+	Parameters	:	df - Dataframe
+					method - string	{pearson, kendall, spearman}
+					abs - Boolean (optinal)
+						Remove the negative sign
+	
+	Return		:	A dataframe contains all possible pairs and corresponding correlation coefficient
+	
+	Example		:	my_corr(df_MS_600K_1MM, "pearson", abs=False)
+	'''
+	
+	start = time.time()
+	
+	if abs:
+		df_corr = df.corr(method=method, min_periods=1).abs().unstack()
+	else:
+		df_corr = df.corr(method=method, min_periods=1).unstack()
+	
+	# Get diagonal and lower triangular pairs of correlation matrix; Drop duplicated pairs
+	pairs_to_drop = set()
+	cols = df.columns
+	for i in range(0, df.shape[1]):
+		for j in range(0, i+1):
+			pairs_to_drop.add((cols[i], cols[j]))
+	df_corr = pd.DataFrame(df_corr.drop(labels=pairs_to_drop))
+	df_corr = df_corr.reset_index()
+	df_corr.columns = ['var1', 'var2', 'corr']
+	df_corr = df_corr.sort_values(by='corr', ascending=False)
+	
+	end = time.time()
+	print('time elapsed: ' + str(end - start) + ' seconds')
+	return df_corr
