@@ -1,3 +1,7 @@
+from sklearn.preprocessing import Imputer
+from sklearn.decomposition import PCA
+
+
 ## PCA Analysis
 imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
 x_imp = imp.fit_transform(x[var_x_pbg])
