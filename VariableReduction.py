@@ -5,7 +5,7 @@ def my_corr(df, method, abs=False):
 	Description	:	Calculate the correlation coefficient for all possible pairs
 	
 	Parameters	:	df - Dataframe
-					method - string	{‘pearson’, ‘kendall’, ‘spearman’}
+					method - string	{â€˜pearsonâ€™, â€˜kendallâ€™, â€˜spearmanâ€™}
 					abs - Boolean (optinal)
 						Remove the negative sign
 	
@@ -150,3 +150,21 @@ def cal_woe_iv(df, var_x, var_y):
             optimal_bins = tree_to_code(clf,[i],[j])
             bins_optimal_df = pd.concat([bins_optimal_df,optimal_bins])
         return bins_optimal_df
+
+from sklearn.cluster import FeatureAgglomeration
+ward_cluster = FeatureAgglomeration(n_clusters=50, affinity='euclidean', linkage='ward', compute_full_tree=bool)
+ward_cluster.fit(df_x.fillna(df_x.mean()), df_y)
+
+mann_cluster = FeatureAgglomeration(n_clusters=50, affinity='l1', linkage='complete')
+mann_cluster.fit(df_x.fillna(df_x.mean()), df_y)
+
+df_cluster = pd.DataFrame()
+df_cluster['feature'] = pd.Series(df_x.columns)
+df_cluster['ward_cluster'] = pd.Series(ward_cluster.labels_)
+df_cluster['mann_cluster'] = pd.Series(mann_cluster.labels_)
+
+df_cluster = df_cluster.merge(df_iv_pbg, left_on='feature', right_on='variable_name', how='left')
+
+
+				    
+				    
