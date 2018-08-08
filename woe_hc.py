@@ -440,8 +440,11 @@ woe_equal_size= woe.equal_size(pd.Series(x1), pd.Series(y_))
 fig = woe_equal_size.plot()
 plt.show(fig)
 woe_equal_size.bins
-woe.df # get the woe table
+woe_equal_size.df # get the woe table
 
+# Transform x2 using x1 transformation rules
+woe_equal_size.transform(pd.Series(x2))
+    
 # make monotonic transformation with decreasing relationship hypothesis
 woe_monotonic = woe.monotonic(x=pd.Series(x1), y=pd.Series(y_), hypothesis=1)
 fig = woe_monotonic.plot()
