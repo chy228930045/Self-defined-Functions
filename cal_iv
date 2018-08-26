@@ -1,38 +1,3 @@
-def my_corr(df, method, abs=False):
-	'''
-	Date		:	04/18/2018 
-	
-	Description	:	Calculate the correlation coefficient for all possible pairs
-	
-	Parameters	:	df - Dataframe
-					method - string	{‘pearson’, ‘kendall’, ‘spearman’}
-					abs - Boolean (optinal)
-						Remove the negative sign
-	
-	Return		:	A dataframe contains all possible pairs and corresponding correlation coefficient
-	
-	Example		:	my_corr(df_MS_600K_1MM, "pearson", abs=False)
-	'''
-	
-	start = time.time()
-	
-	if abs:
-		df_corr = df.corr(method=method, min_periods=1).abs().unstack()
-	else:
-		df_corr = df.corr(method=method, min_periods=1).unstack()
-	
-	# Get diagonal and lower triangular pairs of correlation matrix; Drop duplicated pairs
-	pairs_to_drop = set()
-	cols = df.columns
-	for i in range(0, df.shape[1]):
-		for j in range(0, i+1):
-			pairs_to_drop.add((cols[i], cols[j]))
-	df_corr = pd.DataFrame(df_corr.drop(labels=pairs_to_drop)).sort(ascending=False)
-	
-	end = time.time()
-	print('time elapsed: ' + str(end - start) + ' seconds')
-	return df_corr
-	
 def cal_woe_iv(df, var_x, var_y):
     for j in var_y:
         bins_optimal_df = pd.DataFrame()
@@ -150,21 +115,46 @@ def cal_woe_iv(df, var_x, var_y):
             optimal_bins = tree_to_code(clf,[i],[j])
             bins_optimal_df = pd.concat([bins_optimal_df,optimal_bins])
         return bins_optimal_df
+        
+        
+        # Variable reduction - IV
+df_temp = pd.concat([x[var_x_pbg], y], axis=1)
+df_woe = cal_woe_iv(df = df_temp, var_x = var_x_pbg, var_y = ["pay_dwn_99pct"])
+df_iv_pbg = df_woe[["variable_name", "IV"]].drop_duplicates()
+
+filename = dir_out + "\\df_woe_pbg.csv"
+filename = filename.replace('\\', '/')
+df_woe.to_csv(filename, index=False)
+print df_woe.head(20)
+
+## Remove low IV variables
+print '# of variables before Corr selection: %s' % len(var_x_pbg)
+corr_list.loc[corr_list.var_1_iv >= corr_list.var_2_iv, 'ToDrop'] = corr_list.var_2
+corr_list.loc[corr_list.var_1_iv < corr_list.var_2_iv, 'ToDrop'] = corr_list.var_1
+cutoff = 0.9
+var_drop_corr = list(set(corr_list.loc[(corr_list["corr"] >= cutoff), "ToDrop"]))
+for item in var_drop_corr:
+    var_x_pbg.remove(item)   
+print '# of variables after Corr selection: %s' % len(var_x_pbg)
 
 from sklearn.cluster import FeatureAgglomeration
-ward_cluster = FeatureAgglomeration(n_clusters=50, affinity='euclidean', linkage='ward', compute_full_tree=bool)
-ward_cluster.fit(df_x.fillna(df_x.mean()), df_y)
+df_x = df[var_x_pbg]
+df_y = df[['pay_dwn_99pct']]
+
+ward_cluster = FeatureAgglomeration(n_clusters=50, affinity='euclidean', linkage='ward',compute_full_tree=bool)
+ward_cluster.fit(df_x.fillna(df_x.mean()),df_y)
 
 mann_cluster = FeatureAgglomeration(n_clusters=50, affinity='l1', linkage='complete')
-mann_cluster.fit(df_x.fillna(df_x.mean()), df_y)
+mann_cluster.fit(df_x.fillna(df_x.mean()),df_y)
 
-df_cluster = pd.DataFrame()
-df_cluster['feature'] = pd.Series(df_x.columns)
-df_cluster['ward_cluster'] = pd.Series(ward_cluster.labels_)
-df_cluster['mann_cluster'] = pd.Series(mann_cluster.labels_)
+df_cluster=pd.DataFrame()
+df_cluster['feature']=pd.Series(df_x.columns)
+df_cluster['ward_cluster']=pd.Series(ward_cluster.labels_)
+df_cluster['mann_cluster']=pd.Series(mann_cluster.labels_)
 
 df_cluster = df_cluster.merge(df_iv_pbg, left_on='feature', right_on='variable_name', how='left')
+df_cluster = df_cluster[['feature', 'IV', 'ward_cluster', 'mann_cluster']]
 
-
-				    
-				    
+filename = dir_out + "\\df_cluster_pbg.csv"
+filename = filename.replace('\\', '/')
+df_cluster.to_csv(filename, index=False)
