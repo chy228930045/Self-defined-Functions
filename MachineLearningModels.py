@@ -152,9 +152,9 @@ def my_sklearn_logistic(x, y, param={"penalty":"l1",
 	
 def my_API_XGBoost(x, y, x_val, y_val, param={"learning_rate":1.0,
 											  "n_estimators":100, 
-											  "max_depth":10, 
+											  "max_depth":10,
+                                        "min_child_weight":1,
 											  "colsample_bytree":1.0,
-											  "colsample_bylevel":1.0,
                                         "subsample":1.0,
                                         "gamma":1.0,
 											  "random_state":66}):
@@ -188,18 +188,17 @@ def my_API_XGBoost(x, y, x_val, y_val, param={"learning_rate":1.0,
 	print("n estimators: %d" % param["n_estimators"])
 	print("max depth: %d" % param["max_depth"])
 	print("colsample_bytree: %0.05f" % param["colsample_bytree"])
-	print("colsample_bylevel: %0.05f" % param["colsample_bylevel"])
+	print("min_child_weight: %0.05f" % param["min_child_weight"])
 	print("###########################\n")
 	
 	xgboost = XGBClassifier(learning_rate=param["learning_rate"], 
 							n_estimators=param["n_estimators"], 
 							max_depth=param["max_depth"],
-							colsample_bytree=param["colsample_bytree"], 
-							colsample_bylevel=param["colsample_bylevel"],
+							colsample_bytree=param["colsample_bytree"],
 							seed=param["random_state"],
 							subsample=param["subsample"], 
 							gamma=param["gamma"], 
-							min_child_weight=1,
+							min_child_weight=param["min_child_weight"],
 							objective ='binary:logistic',
 							base_score=0.5,
 							scale_pos_weight=1, 

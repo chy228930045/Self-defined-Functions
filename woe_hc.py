@@ -58,16 +58,12 @@ class WoE:
     
     # Execution Functions
     def categorical(self, x, y):
-        """
-        All the buckets have the same # of obs
-        """
+
         new_woe = self.fit(x, y)
         return new_woe
     
     def equal_size(self, x, y):
-        """
-        All the buckets have the same # of obs
-        """
+
         new_woe = self.fit(x, y)
         return new_woe
     
@@ -95,6 +91,7 @@ class WoE:
         df = pd.DataFrame({"X": x, 'order': np.arange(x.size)})
         # splitting to discrete and continous pars
         df_sp_values, df_cont = self._split_sample(df)
+
         # Replacing original with manual woe
         tr_bins = self.bins[['woe', 'labels']].copy()
         if manual_woe:
@@ -435,6 +432,11 @@ x2[30:40] = float(0)
 # Initialize WoE object
 woe = WoE(7, 30, spec_values={0: '0', 1: '1', 2: '2'}, v_type='c', t_type='c')
 
+# Transform x1
+woe.fit(pd.Series(x1), pd.Series(y_))
+# Transform x2 using x1 transformation rules
+woe.transform(pd.Series(x2))
+    
 # make equal-size based transformation
 woe_equal_size= woe.equal_size(pd.Series(x1), pd.Series(y_))
 fig = woe_equal_size.plot()

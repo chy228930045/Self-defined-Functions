@@ -79,7 +79,9 @@ def EDD_cat(df, ls_var=None, top_count=5):
         EDD(svcgfile_Q12001)
 """
 
-def EDD(df, ls_var=None, ls_force_categorical=None, percentile=[.01, .05, .25, .5, .75, .95, .99], top_count=5): 
+def EDD(df, ls_var=None, ls_force_categorical=None, percentile=[.01, .05, .25, .5, .75, .95, .99], top_count=5, sample_frac = 0.1): 
+    df = df.sample(frac=sample_frac, replace=False)
+    
     if str(ls_var)=='None': 
         ls_var = df.columns.tolist()    
     input_types = EDD_type(df[ls_var])
