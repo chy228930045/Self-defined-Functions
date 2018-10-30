@@ -1,0 +1,93 @@
+# Bivariate Profiling
+def df_proba(model, x, y):
+    df_y_prob = pd.DataFrame(model.predict_proba(x)[:, 1], columns = ['y_prob'])
+    df_y = pd.DataFrame(y.values, columns = ['y'])
+    df_prob = pd.concat([df_y_prob, df_y], 1)
+    
+    return df_prob
+    
+def bin_summary(df_temp, bins):
+    df_temp['bin'] = pd.qcut(df_temp['y_prob'].rank(method='first'), bins)
+    df_temp_agg = df_temp.groupby('bin').agg({'y_prob':['min', 'max'], 'y':['sum', 'count']}).reset_index()
+    df_temp_agg.columns = ['bin', 'n_target', 'n_obs', 'min', 'max']
+    df_temp_agg['target_rate'] = df_temp_agg['n_target'] * 1.0 / df_temp_agg['n_obs']
+    df_temp_agg = df_temp_agg[['bin', 'min', 'max', 'n_obs','target_rate']]
+    
+    return df_temp_agg
+ 
+ # Example
+ df_prob_dtree = df_proba(model_dtree, x, y)
+ bin_summary(df_prob_dtree_oot, 10)
+
+
+# Sensitivity Analysis
+def cal_auc(model, x, y):
+
+    probs = model.predict_proba(x)
+    probs_true = probs[::, 1]
+    
+    fpr, tpr, thresholds = roc_curve(y, probs_true)
+    roc_auc = auc(fpr,tpr)
+
+    return roc_auc
+
+def cal_ks(model, x, y, num_bins=21):
+
+    probs = model.predict_proba(x)
+    probs_true = probs[:, 1]
+
+    df_y_prob = pd.DataFrame(probs_true, columns = ['y_prob'])
+    df_y = pd.DataFrame(y.values, columns = ['y'])
+    df_lift = pd.concat([df_y_prob, df_y], 1)
+
+    bins = np.unique(df_lift['y_prob'].quantile(np.linspace(0, 1, num_bins)))
+    df_lift['decile'] = pd.cut(df_lift['y_prob'], bins, labels=np.arange(0,len(bins)-1,1)[::-1], include_lowest=True)
+    df_lift = df_lift.groupby(['decile','y'])
+    df_lift = df_lift.y.count().unstack().fillna(0).sort_index(ascending=False)
+    df_lift.columns = ['good', 'bad']
+    total_good, total_bad = df_lift.sum()[0], df_lift.sum()[1]
+
+    df_lift['dist_good'] = df_lift['good'] / total_good
+    df_lift['dist_bad'] = df_lift['bad'] / total_bad
+    df_lift['dist_total'] = (df_lift['good'] + df_lift['bad']) / (total_good + total_bad)
+
+    df_lift['cul_dist_good'] = df_lift['dist_good'].cumsum(axis=0)
+    df_lift['cul_dist_bad'] = df_lift['dist_bad'].cumsum(axis=0)
+    df_lift['cul_dist_total'] = df_lift['dist_total'].cumsum(axis=0)
+
+    df_lift['cul_lift'] = (df_lift['cul_dist_bad'] + 0.0001)/(df_lift['cul_dist_total'] + 0.0001)
+
+    KS_value = max(abs(df_lift['cul_dist_good'] - df_lift['cul_dist_bad']))
+
+    return KS_value
+
+def sensitivity_analysis(df_x, df_y, model, metric, col, ls_change_pctg):
+    
+    ls_results = [col]
+    for idx, delta in enumerate(ls_change_pctg):
+        df_x_temp = df_x.copy()
+        df_x_temp[col] = df_x_temp[col] * (1 + delta)
+        if metric == 'ks':
+            ls_results.append(cal_ks(model, df_x_temp, df_y, num_bins=21))
+        if metric == 'auc':
+            ls_results.append(cal_auc(model, df_x_temp, df_y))
+        if metric == 'prob':
+            ls_results.append(model.predict_proba(df_x_temp)[:, 1].mean())
+                    
+    df_output = pd.DataFrame(np.array(ls_results).reshape(1, len(ls_change_pctg)+1), columns=(['Feature'] + ls_change_pctg))
+    for col in ls_change_pctg:
+        
+        if col <> 0:
+            df_output[col] = str(round((df_output[col].astype(float)[0] - df_output[0].astype(float)[0]) * 1.0 / df_output[0].astype(float)[0] * 100, 2)) + '%'
+    
+    return df_output
+
+# Example
+df_sa = pd.DataFrame()
+for col in ['outstanding_balance_md_max_3m', 'total_n_draws_gt5000_6m', 'outstanding_balance_md_avg_3m', 
+            'outstanding_balance_mov_avg_max_diff_3m', 'outstanding_balance_trend_3m']:
+    print(col)
+    df_temp = sensitivity_analysis(x, y, model_xgb, 'prob', col, [0, -0.15, -0.1, -0.05, 0.05, 0.1, 0.15])
+    df_sa = pd.concat([df_sa, df_temp])
+    
+df_sa
